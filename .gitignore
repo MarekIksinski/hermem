@@ -1,0 +1,7 @@
+# runtime state — never in git
+store/
+__pycache__/
+*.log
+.venv/
+pyproject.toml.lock
+uv.lock
