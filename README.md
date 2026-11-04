@@ -23,6 +23,14 @@ Three memory layers (SQLite + ChromaDB, all local):
 
 ## Setup
 
+> **Note for your own configuration:** the code contains example values from
+> my homelab — the P40 Ollama address in `l1_worker.py`
+> (`OLLAMA_URL = "http://192.168.1.127:11434/..."`) and the LAN IPs/ports in
+> the test files. Replace them with your own (any Ollama server works, or
+> skip the worker entirely — stand-in L1 summaries are fine without it).
+> Paths assume `~/.hermes/mem`; adjust `DEFAULT_DB_DIR` / `MEM_DIR` if you
+> install elsewhere.
+
 ```bash
 uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python chromadb sentence-transformers mcp
