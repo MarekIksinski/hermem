@@ -71,8 +71,10 @@ a long-term memory store far bigger than its built-in memory budget.
        sidecar table; MCP server applies on next recall. Verified end-to-end.
        Also done: scheduled service via cron job 'hermem-l1-enrichment'
        (every 30m, ~/.hermes/scripts/hermem_l1_tick.sh).
-   [ ] Later: spaCy KG re-attach; migration import of existing papers as
-       memories.
+   [ ] Later: spaCy KG re-attach (parked).
+       DECIDED 2026-11-05: paper-import is OUT permanently — hermem is the
+       agent's memory, the paper chatbot stays a separate archive (unchanged,
+       unrunnable here, revival path in memory 566b62b521d7).
 8. [x] Ground-truth layer (built 2026-11-05):
        - SQLite table ground_truth(id, kind[bug-fix|error-log|command-output|
          config|snippet], class, title, payload VERBATIM, source, memory_id,
@@ -119,7 +121,23 @@ a long-term memory store far bigger than its built-in memory budget.
            bare format:"json" degenerated to empty -> use "structured" schema.
            Verified: vague GPU query -> hardware memory pos=0; nonsense query
            -> ranker declines, fallback honest. Warm cost ~1.5s.
-        h. (later) session-memory template + dual-threshold auto-extraction
-   NOTE: a/b/c/d live (restart 2026-11-05, mem_index verified via MCP); g
-   (rerank=true) needs one more restart to reach the MCP server process —
-   store-level path already verified end-to-end.
+        h. [x-v1] session close-out ritual (designed+shipped 2026-11-05):
+           Option A (agent-side, zero store code). Triggers: milestone-level
+           state changes — git push, todo item closed, spec agreed,
+           deploy/restart verified, decision with Marek. NOT per commit,
+           NOT per tool call: one episodic memory per WORK UNIT.
+           Template (fixed sections): MILESTONE / Did (commit hashes, files,
+           task ids) / Decisions (+Why: +How to apply:) / Dead ends /
+           State now / Next. tags milestone,<project>; class_ episodic.
+           Anti-bloat: trivial units (typo fixes) earn nothing — git log
+           covers them (negative list still applies). Continuity: session-
+           start mem_index surfaces newest milestone per project.
+           [ ] B (only if v1 survives 2wk bake): mem_session() tool —
+               server-side template validation, auto milestone tag, auto-link
+               ground_truth rows filed during the unit. ~40 lines.
+           [ ] C (only if we keep forgetting A): cron distiller over Hermes
+               session transcripts via P40 — highest cost, dropped qualifiers
+               risk; do not build without bake evidence that A fails.
+   NOTE: all port-list items live in MCP server (restarted 2026-11-05;
+   mem_index/ground/lookup verified via MCP; rerank=true verified at store
+   level — confirm once via MCP after next session start).
