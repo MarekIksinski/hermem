@@ -144,3 +144,38 @@ a long-term memory store far bigger than its built-in memory budget.
    NOTE: all port-list items live in MCP server (restarted 2026-11-05;
    mem_index/ground/lookup verified via MCP; rerank=true verified at store
    level — confirm once via MCP after next session start).
+
+11. Dream loop — scheduled memory consolidation (designed 2026-11-05).
+    CC source: services/autoDream/ (gate order + consolidationPrompt.ts
+    4-phase prompt). Closes the loop our v4 schema was built for: age_days,
+    review_due and stats()'s review queue currently have NO worker acting
+    on them. Worker = PARENT MODEL IN-SESSION (DECIDED: qwen3.5:9b too
+    weak — drops scope qualifiers; P40 may only fetch/assemble, never
+    judge). Gate-cheap-first, mirrors CC:
+      Gate: mem_stats() first (free, local). review_due==0 + no near-dupe
+            flags -> skip immediately, say so, done.
+      P1 Orient:   mem_index() — what exists, what's flagged.
+      P2 Gather:   review_due rows (operational >14d, semantic >90d);
+                   near-dupe pairs from the manifest; rows whose linked
+                   ground_truth is newer than the memory.
+      P3 Consolidate (parent-model judgment, in-session): merge flagged
+                   near-dupes into one row (supersede chain keeps audit);
+                   rewrite stale OPERATIONAL rows with fresh facts —
+                   episodic rows are NEVER edited, supersede instead;
+                   fix relative dates; kill contradicted facts at source.
+      P4 Prune:    superseded rows drop from L1 automatically; verify
+                   stats() moved; report what changed (never silent edits).
+    Triggers (both cheap):
+      a. Cron weekly (Mon ~09:00): prompt = load hermem skill, run the
+         dream ritual, deliver one-line summary. Cron starts a session ->
+         parent model executes, no P40 judging.
+      b. Skill rule: if mem_index/mem_stats shows review_due>0 during any
+         session, offer the dream then instead of waiting for Monday.
+    Acceptance:
+      [ ] Cron job created + first run verified end-to-end.
+      [ ] Skill rule (b) patched compact.
+      [ ] First real consolidation leaves a visible supersede chain.
+      [ ] No new store code unless P2 needs a batch-fetch helper (stats +
+          index + lookup probably suffice — default: none).
+    Anti-goals: no full-transcript mining (that's 10h-C, still gated);
+    no rewriting episodic history; dream reports every change it makes.
