@@ -274,6 +274,27 @@ class MemoryStore:
         chunks = _split_chunks(content)
         l1 = [_first_sentence(c) for c in chunks]
 
+        # Manifest-dedup (Claude Code lesson): before writing, show the writer
+        # its nearest existing neighbours so update/supersede beats duplicate.
+        # Cheap: one encode + one L1 query; only a hint, never a block.
+        near_dupes: List[Dict[str, Any]] = []
+        if self.summary_collection.count() > 0:
+            probe = self.embedding_model.encode(summary or chunks[0], normalize_embeddings=True).tolist()
+            q = self.summary_collection.query(query_embeddings=[probe], n_results=min(5, self.summary_collection.count()))
+            seen = set()
+            for meta, dist in zip(q["metadatas"][0], q["distances"][0]):
+                mid = meta["memory_id"]
+                if mid == mem_id or mid in seen:
+                    continue
+                seen.add(mid)
+                if dist < 0.45:  # normalized embeddings: <0.45 ~ strongly related
+                    info = self._meta_sql([mid]).get(mid, {})
+                    if not info.get("valid", False):
+                        continue  # don't nudge toward superseded/tainted rows
+                    near_dupes.append({"memory_id": mid, "distance": round(float(dist), 3),
+                                       "class": info.get("class", "?"),
+                                       "summary": info.get("summary", "")})
+
         ids = [f"{mem_id}#{i}" for i in range(len(chunks))]
         meta = [{"memory_id": mem_id, "tags": tags, "kind": kind, "class": class_, "level": 0} for _ in chunks]
         emb0 = self.embedding_model.encode(chunks, normalize_embeddings=True).tolist()
@@ -285,7 +306,38 @@ class MemoryStore:
         emb1 = self.embedding_model.encode(l1, normalize_embeddings=True).tolist()
         self.summary_collection.add(embeddings=emb1, documents=l1, metadatas=smeta, ids=sids)
 
-        return {"status": "stored", "id": mem_id, "chunks": len(chunks), "class": class_}
+        result = {"status": "stored", "id": mem_id, "chunks": len(chunks), "class": class_}
+        if near_dupes:
+            result["near_dupes"] = near_dupes  # consider supersedes instead of a new write
+        return result
+
+    def index(self, class_filter: str = "", limit: int = 50) -> List[Dict[str, Any]]:
+        """Manifest view: [class] id (age): L2 summary for valid memories.
+
+        Newest first, no content bodies — the Claude Code MEMORY.md pattern:
+        a cheap index the agent scans to decide update-vs-create and what to
+        recall in full.
+        """
+        if class_filter and class_filter not in MEMORY_CLASSES:
+            return []
+        with sqlite3.connect(self.sql_db_path) as conn:
+            q = ("SELECT id, class, kind, tags, summary, created_at FROM memories "
+                 "WHERE is_valid = 1 {} ORDER BY created_at DESC LIMIT ?")
+            params: list = []
+            if class_filter:
+                q = q.format("AND class = ?")
+                params.append(class_filter)
+            else:
+                q = q.format("")
+            params.append(limit)
+            rows = conn.execute(q, params).fetchall()
+        out = []
+        for r in rows:
+            entry = {"id": r[0], "class": r[1], "kind": r[2], "tags": r[3],
+                     "summary": r[4], "created_at": r[5]}
+            entry.update(self._staleness(r[1], r[5]))
+            out.append(entry)
+        return out
 
     # ---------- Read ----------
 

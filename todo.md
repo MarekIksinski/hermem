@@ -107,7 +107,11 @@ a long-term memory store far bigger than its built-in memory budget.
            clean. Aging = prompt text, never score decay.
         c. [x] write-path negative list + Why:/How-to-apply: convention +
            absolute-date rule in mem_remember description (covers e, f).
-        d. (later) manifest dedup: mem_index() or near-dupe hints in remember
+        d. [x] manifest dedup: mem_index() tool (id/class/summary/age manifest,
+           class filter) + near_dupes hints in remember result (L1 probe,
+           dist<0.45, tainted rows excluded). Verified: near-dupe caught a
+           paraphrase of the chatbot memory at 0.391.
         g. (later) P40 LLM re-rank on read path, <=5 picks, id validation
         h. (later) session-memory template + dual-threshold auto-extraction
-   NOTE: a/b/c need a Hermes restart to go live in the MCP server process.
+   NOTE: a/b/c live since restart 2026-11-05 (verified end-to-end); d needs
+   one more restart to expose mem_index.

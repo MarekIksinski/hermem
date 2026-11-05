@@ -51,6 +51,9 @@ def mem_remember(content: str, summary: str, tags: str = "", kind: str = "note",
     operational = what is active (projects, branches, hosts; ~14d review
     flag). Disambiguation: will this still be true when no project touches
     it? yes=semantic, no=operational. Default semantic.
+    The result may carry near_dupes: [id, class, distance, summary] of
+    strongly-related existing memories — prefer supersedes=<that id> over a
+    parallel new write. Run mem_index() first to scan the whole manifest.
     """
     return json.dumps(store.remember(content=content, summary=summary, tags=tags, kind=kind,
                                      supersedes=supersedes, class_=class_))
@@ -108,8 +111,19 @@ def mem_context(query: str, top_n: int = 3, window: int = 1) -> str:
 
 
 @mcp.tool()
+def mem_index(class_: str = "", limit: int = 50) -> str:
+    """Manifest of all valid memories: id, class, kind, tags, L2 summary, age.
+
+    One-line entries, newest first, no content bodies — scan this before
+    remembering (update/supersede beats duplicate) and before recalling.
+    class_ filters; staleness flags (age_days/review_due/stale) included.
+    """
+    return json.dumps(store.index(class_filter=class_, limit=limit), ensure_ascii=False)
+
+
+@mcp.tool()
 def mem_stats() -> str:
-    """Counts of memories, chunks (L0) and one-liners (L1), by kind."""
+    """Counts of memories (by kind and class), ground-truth rows, L0 chunks and L1 one-liners."""
     return json.dumps(store.stats())
 
 
