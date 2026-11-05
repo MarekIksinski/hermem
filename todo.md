@@ -132,9 +132,12 @@ a long-term memory store far bigger than its built-in memory budget.
            Anti-bloat: trivial units (typo fixes) earn nothing — git log
            covers them (negative list still applies). Continuity: session-
            start mem_index surfaces newest milestone per project.
-           [ ] B (only if v1 survives 2wk bake): mem_session() tool —
-               server-side template validation, auto milestone tag, auto-link
-               ground_truth rows filed during the unit. ~40 lines.
+           [x] B (shipped 2026-11-05, ahead of bake gate — user call):
+               mem_session() tool — six required section args = enforced
+               template (hard-error on empty), episodic+milestone kind/tag
+               automatic, auto-links unlinked ground_truth since previous
+               milestone. Verified: missing-section error, auto-link works,
+               all 6 sections survive chunking, supersede errors (episodic).
            [ ] C (only if we keep forgetting A): cron distiller over Hermes
                session transcripts via P40 — highest cost, dropped qualifiers
                risk; do not build without bake evidence that A fails.

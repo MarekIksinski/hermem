@@ -116,6 +116,31 @@ def mem_context(query: str, top_n: int = 3, window: int = 1) -> str:
 
 
 @mcp.tool()
+def mem_session(milestone: str, did: str, decisions: str, dead_ends: str,
+                state_now: str, next_step: str, project: str = "") -> str:
+    """Milestone close-out with an enforced template (episodic, immutable).
+
+    Call at durable state changes: git push, todo item closed, spec agreed,
+    deploy/restart verified, decision with the user. One per WORK UNIT, not
+    per commit. All sections required (write 'none' if empty) — the schema
+    enforces the template. Sections:
+      milestone: one-line header incl. absolute date, e.g. 'hermem v4-B
+        shipped (2026-11-05)' — becomes the L2 summary.
+      did: 1-3 lines with commit hashes, files, task ids.
+      decisions: choice + **Why:** + **How to apply:** lines.
+      dead_ends: rejected approaches so future sessions don't retry them.
+      state_now: live vs pending, restart-pending flags, versions.
+      next_step: the concrete next action.
+    Auto-links unlinked ground-truth rows filed since the previous
+    milestone. Trivial units (typo fix) earn no call — git log covers them.
+    """
+    return json.dumps(store.session(milestone=milestone, did=did, decisions=decisions,
+                                    dead_ends=dead_ends, state_now=state_now,
+                                    next_step=next_step, project=project),
+                      ensure_ascii=False)
+
+
+@mcp.tool()
 def mem_index(class_: str = "", limit: int = 50) -> str:
     """Manifest of all valid memories: id, class, kind, tags, L2 summary, age.
 

@@ -311,6 +311,67 @@ class MemoryStore:
             result["near_dupes"] = near_dupes  # consider supersedes instead of a new write
         return result
 
+    def session(
+        self,
+        milestone: str,
+        did: str,
+        decisions: str,
+        dead_ends: str,
+        state_now: str,
+        next_step: str,
+        project: str = "",
+    ) -> Dict[str, Any]:
+        """Close-out ritual (task 10h-B): enforce the milestone template.
+
+        All five sections are required arguments — the schema IS the template,
+        so it cannot be half-written. Assembles the fixed-section episodic
+        memory, tags it milestone[,<project>], and auto-links any
+        ground-truth rows filed since the previous milestone that are still
+        unlinked (memory_id IS NULL).
+        """
+        empty = [n for n, v in (("did", did), ("decisions", decisions),
+                                ("dead_ends", dead_ends), ("state_now", state_now),
+                                ("next_step", next_step)) if not v.strip()]
+        if empty:
+            return {"status": "error",
+                    "error": f"milestone template sections missing (write them, even if 'none'): {', '.join(empty)}"}
+        if not milestone.strip():
+            return {"status": "error", "error": "milestone (one-line header incl. absolute date) required"}
+
+        body = (
+            f"MILESTONE: {milestone.strip()}\n\n"
+            f"Did: {did.strip()}\n\n"
+            f"Decisions: {decisions.strip()}\n\n"
+            f"Dead ends: {dead_ends.strip()}\n\n"
+            f"State now: {state_now.strip()}\n\n"
+            f"Next: {next_step.strip()}"
+        )
+        tags = "milestone" + (f",{project}" if project else "")
+
+        # auto-link cutoff: last milestone's created_at (else epoch)
+        with sqlite3.connect(self.sql_db_path) as conn:
+            last = conn.execute(
+                "SELECT created_at FROM memories WHERE kind='milestone' AND is_valid=1 "
+                "ORDER BY created_at DESC LIMIT 1").fetchone()
+        cutoff = last[0] if last else "0000-01-01"
+
+        result = self.remember(content=body, summary=milestone.strip(), tags=tags,
+                               kind="milestone", class_="episodic")
+        if result.get("status") != "stored":
+            return result
+
+        with sqlite3.connect(self.sql_db_path) as conn:
+            rows = conn.execute(
+                "SELECT id, title FROM ground_truth WHERE memory_id IS NULL AND created_at > ?",
+                (cutoff,)).fetchall()
+            for gid, _ in rows:
+                conn.execute("UPDATE ground_truth SET memory_id = ? WHERE id = ?",
+                             (result["id"], gid))
+            conn.commit()
+        if rows:
+            result["linked_ground_truth"] = [g for g, _ in rows]
+        return result
+
     def index(self, class_filter: str = "", limit: int = 50) -> List[Dict[str, Any]]:
         """Manifest view: [class] id (age): L2 summary for valid memories.
 
