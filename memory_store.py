@@ -398,7 +398,7 @@ class MemoryStore:
         return flags
 
     def recall(self, query: str, layer: int = 0, top_n: int = 5,
-               class_filter: str = "") -> List[Dict[str, Any]]:
+               class_filter: str = "", rerank: bool = False) -> List[Dict[str, Any]]:
         if class_filter and class_filter not in MEMORY_CLASSES:
             return []
         self._apply_pending_l1()
@@ -406,8 +406,9 @@ class MemoryStore:
         if coll.count() == 0:
             return []
         qemb = self.embedding_model.encode(query, normalize_embeddings=True).tolist()
-        # over-fetch when filtering so post-query class filter still fills top_n
-        n = min(top_n * 3 if class_filter else top_n, coll.count())
+        # over-fetch when filtering or reranking so post-filters still fill top_n
+        wide = rerank or bool(class_filter)
+        n = min(top_n * (10 if rerank else 3) if wide else top_n, coll.count())
         res = coll.query(query_embeddings=[qemb], n_results=n)
         out = []
         if not res["ids"] or not res["ids"][0]:
@@ -416,6 +417,7 @@ class MemoryStore:
         mem_ids = [m["memory_id"] for m in metas]
         sql = self._meta_sql(mem_ids)
         self._touch([m for m in mem_ids if sql.get(m, {}).get("valid")])
+        seen_mem = set()
         for cid, doc, meta, dist in zip(res["ids"][0], res["documents"][0], metas, res["distances"][0]):
             mid = meta["memory_id"]
             info = sql.get(mid, {})
@@ -424,6 +426,8 @@ class MemoryStore:
             mem_class = info.get("class") or meta.get("class", "semantic")
             if class_filter and mem_class != class_filter:
                 continue
+            if rerank and mid in seen_mem:
+                continue  # candidate set is per-memory (L2 granularity)
             entry = {
                 "memory_id": mid,
                 "chunk_id": cid,
@@ -445,9 +449,27 @@ class MemoryStore:
             if gt:
                 entry["ground_truth"] = [{"id": g[0], "kind": g[1], "title": g[2]} for g in gt]
             out.append(entry)
-            if len(out) >= top_n:
+            seen_mem.add(mid)
+            if len(out) >= (top_n * 4 if rerank else top_n):
                 break
-        return out
+
+        if rerank and out:
+            from reranker import rerank as _rr
+            picked = _rr(query, out, top_n)
+            if picked:
+                by_mem: Dict[str, List[Dict[str, Any]]] = {}
+                for e in out:
+                    by_mem.setdefault(e["memory_id"], []).append(e)
+                reordered = []
+                for rank, mid in enumerate(picked):
+                    for e in by_mem.get(mid, [])[:1]:  # best chunk per picked memory
+                        e = dict(e)
+                        e["reranked"] = True
+                        e["rerank_position"] = rank
+                        reordered.append(e)
+                return reordered[:top_n]
+                # picked == [] -> "nothing certain" or failure: keep vector order
+        return out[:top_n]
 
     def context(self, query: str, top_n: int = 3, window: int = 1) -> List[Dict[str, Any]]:
         """Contextual L0 search: expand hits with neighbouring chunks (uuid#idx scheme)."""

@@ -111,7 +111,15 @@ a long-term memory store far bigger than its built-in memory budget.
            class filter) + near_dupes hints in remember result (L1 probe,
            dist<0.45, tainted rows excluded). Verified: near-dupe caught a
            paraphrase of the chatbot memory at 0.391.
-        g. (later) P40 LLM re-rank on read path, <=5 picks, id validation
+        g. [x] P40 LLM re-rank on read path (reranker.py): recall(rerank=True)
+           over-fetches x10, one qwen3.5:9b /api/chat call with structured
+           outputs picks <=top_n certain memories (per-memory granularity),
+           ids validated vs candidates, silent fallback to vector order.
+           Pitfall found: /api/chat not /api/generate (messages vs prompt);
+           bare format:"json" degenerated to empty -> use "structured" schema.
+           Verified: vague GPU query -> hardware memory pos=0; nonsense query
+           -> ranker declines, fallback honest. Warm cost ~1.5s.
         h. (later) session-memory template + dual-threshold auto-extraction
-   NOTE: a/b/c live since restart 2026-11-05 (verified end-to-end); d needs
-   one more restart to expose mem_index.
+   NOTE: a/b/c/d live (restart 2026-11-05, mem_index verified via MCP); g
+   (rerank=true) needs one more restart to reach the MCP server process —
+   store-level path already verified end-to-end.

@@ -60,7 +60,8 @@ def mem_remember(content: str, summary: str, tags: str = "", kind: str = "note",
 
 
 @mcp.tool()
-def mem_recall(query: str, layer: int = 0, top_n: int = 5, class_: str = "") -> str:
+def mem_recall(query: str, layer: int = 0, top_n: int = 5, class_: str = "",
+               rerank: bool = False) -> str:
     """Semantic search of long-term memory.
 
     layer=1 searches chunk one-liners (broad: find WHICH memory matters);
@@ -68,8 +69,12 @@ def mem_recall(query: str, layer: int = 0, top_n: int = 5, class_: str = "") -> 
     tags, class, dates, staleness flags (review_due/stale) and the parent
     memory summary for each hit. class_ filters to one memory class:
     recall(class_='operational') is the weekly-review open-commitments list.
+    rerank=true widens the net and lets a small P40 model pick only the hits
+    it is CERTAIN are relevant (fewer but sharper; falls back to vector
+    order on any failure). Use it for vague/short queries.
     """
-    return json.dumps(store.recall(query=query, layer=layer, top_n=top_n, class_filter=class_),
+    return json.dumps(store.recall(query=query, layer=layer, top_n=top_n,
+                                   class_filter=class_, rerank=rerank),
                       ensure_ascii=False)
 
 
