@@ -25,7 +25,19 @@ from typing import Any, Dict, List, Optional
 import chromadb
 from sentence_transformers import SentenceTransformer
 
+from secret_scanner import redact_and_report
+
 DEFAULT_DB_DIR = "/home/marek/.hermes/mem/store"
+
+MEMORY_CLASSES = ("episodic", "semantic", "operational")
+# Per-class staleness clocks (days). Episodic never decays.
+OPERATIONAL_REVIEW_DAYS = 14
+SEMANTIC_STALE_DAYS = 180
+# Claude Code lesson: age is prompt text, not score decay. Hits older than
+# this get an inline drift caveat rendered in human words ("N days ago").
+DRIFT_CAVEAT_DAYS = 1
+DRIFT_CAVEAT = ("this memory was written {age} — a point-in-time observation, not live "
+                "state; verify against current reality before asserting as fact")
 
 
 def _first_sentence(text: str, max_len: int = 200) -> str:
@@ -113,6 +125,64 @@ class MemoryStore:
                 conn.execute("ALTER TABLE memories ADD COLUMN supersedes TEXT")
             except sqlite3.OperationalError:
                 pass  # column already exists
+            # schema v3: memory class (episodic|semantic|operational).
+            # Existing rows default to 'semantic' (they are architecture /
+            # constraint facts, which is correct for both seeded memories).
+            try:
+                conn.execute(
+                    "ALTER TABLE memories ADD COLUMN class TEXT NOT NULL DEFAULT 'semantic' "
+                    "CHECK(class IN ('episodic','semantic','operational'))"
+                )
+            except sqlite3.OperationalError:
+                pass  # column already exists
+            # schema v4: secret-hit flag on ground truth (rule ids, space-separated)
+            try:
+                conn.execute("ALTER TABLE ground_truth ADD COLUMN secret_hit TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # column already exists
+            # ---------- schema v3: ground-truth layer (task 8) ----------
+            # Verbatim evidence (crash logs, commands, config, snippets).
+            # NO embeddings — exact-token search via FTS5 only.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ground_truth (
+                    id TEXT PRIMARY KEY,
+                    kind TEXT NOT NULL CHECK(kind IN ('bug-fix','error-log','command-output','config','snippet')),
+                    class TEXT NOT NULL DEFAULT 'episodic' CHECK(class IN ('episodic','semantic','operational')),
+                    title TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    source TEXT NOT NULL DEFAULT '',
+                    memory_id TEXT,
+                    secret_hit TEXT NOT NULL DEFAULT '',
+                    created_at TIMESTAMP NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE VIRTUAL TABLE IF NOT EXISTS ground_truth_fts
+                USING fts5(title, payload, content='ground_truth', content_rowid='rowid')
+                """
+            )
+            # Keep FTS in sync with the content table.
+            conn.executescript(
+                """
+                CREATE TRIGGER IF NOT EXISTS gt_ai AFTER INSERT ON ground_truth BEGIN
+                    INSERT INTO ground_truth_fts(rowid, title, payload)
+                    VALUES (new.rowid, new.title, new.payload);
+                END;
+                CREATE TRIGGER IF NOT EXISTS gt_ad AFTER DELETE ON ground_truth BEGIN
+                    INSERT INTO ground_truth_fts(ground_truth_fts, rowid, title, payload)
+                    VALUES ('delete', old.rowid, old.title, old.payload);
+                END;
+                CREATE TRIGGER IF NOT EXISTS gt_au AFTER UPDATE ON ground_truth BEGIN
+                    INSERT INTO ground_truth_fts(ground_truth_fts, rowid, title, payload)
+                    VALUES ('delete', old.rowid, old.title, old.payload);
+                    INSERT INTO ground_truth_fts(rowid, title, payload)
+                    VALUES (new.rowid, new.title, new.payload);
+                END;
+                """
+            )
             # Sidecar queue: the P40 l1_worker.py (separate process) inserts
             # upgraded L1 summaries here; this process (Chroma owner) applies
             # them on the next call. Keeps Chroma single-writer.
@@ -163,7 +233,10 @@ class MemoryStore:
         tags: str = "",
         kind: str = "note",
         supersedes: str = "",
+        class_: str = "semantic",
     ) -> Dict[str, Any]:
+        if class_ not in MEMORY_CLASSES:
+            return {"status": "error", "error": f"class must be one of {MEMORY_CLASSES}"}
         content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
         with sqlite3.connect(self.sql_db_path) as conn:
             dup = conn.execute(
@@ -173,32 +246,46 @@ class MemoryStore:
             if dup:
                 return {"status": "duplicate", "id": dup[0]}
 
+            if supersedes:
+                # episodic memories are immutable history — supersession of an
+                # event record must ERROR, never silently taint.
+                target = conn.execute(
+                    "SELECT id, class FROM memories WHERE id = ?", (supersedes,)
+                ).fetchone()
+                if not target:
+                    return {"status": "error", "error": f"supersedes id not found: {supersedes}"}
+                if target[1] == "episodic":
+                    return {
+                        "status": "error",
+                        "error": f"cannot supersede episodic memory {supersedes} (history is immutable); "
+                                 "store the outcome as a new episodic record instead",
+                    }
+                conn.execute("UPDATE memories SET is_valid = 0 WHERE id = ?", (supersedes,))
+
             mem_id = uuid.uuid4().hex[:12]
             now = datetime.now().isoformat(timespec="seconds")
             conn.execute(
-                "INSERT INTO memories (id, summary, content_hash, tags, kind, created_at, last_accessed_at, supersedes) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (mem_id, summary, content_hash, tags, kind, now, now, supersedes or None),
+                "INSERT INTO memories (id, summary, content_hash, tags, kind, created_at, last_accessed_at, supersedes, class) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (mem_id, summary, content_hash, tags, kind, now, now, supersedes or None, class_),
             )
-            if supersedes:
-                conn.execute("UPDATE memories SET is_valid = 0 WHERE id = ?", (supersedes,))
             conn.commit()
 
         chunks = _split_chunks(content)
         l1 = [_first_sentence(c) for c in chunks]
 
         ids = [f"{mem_id}#{i}" for i in range(len(chunks))]
-        meta = [{"memory_id": mem_id, "tags": tags, "kind": kind, "level": 0} for _ in chunks]
+        meta = [{"memory_id": mem_id, "tags": tags, "kind": kind, "class": class_, "level": 0} for _ in chunks]
         emb0 = self.embedding_model.encode(chunks, normalize_embeddings=True).tolist()
         self.chunk_collection.add(embeddings=emb0, documents=chunks, metadatas=meta, ids=ids)
 
         sids = [f"{mem_id}#s{i}" for i in range(len(l1))]
-        smeta = [{"memory_id": mem_id, "tags": tags, "kind": kind, "level": 1, "l0_chunk_id": ids[i],
+        smeta = [{"memory_id": mem_id, "tags": tags, "kind": kind, "class": class_, "level": 1, "l0_chunk_id": ids[i],
                   "l1_state": "standin"} for i in range(len(l1))]
         emb1 = self.embedding_model.encode(l1, normalize_embeddings=True).tolist()
         self.summary_collection.add(embeddings=emb1, documents=l1, metadatas=smeta, ids=sids)
 
-        return {"status": "stored", "id": mem_id, "chunks": len(chunks)}
+        return {"status": "stored", "id": mem_id, "chunks": len(chunks), "class": class_}
 
     # ---------- Read ----------
 
@@ -219,21 +306,57 @@ class MemoryStore:
         with sqlite3.connect(self.sql_db_path) as conn:
             q = ",".join("?" for _ in mem_ids)
             rows = conn.execute(
-                f"SELECT id, summary, tags, kind, created_at, is_valid FROM memories WHERE id IN ({q})",
+                f"SELECT id, summary, tags, kind, created_at, is_valid, class FROM memories WHERE id IN ({q})",
                 mem_ids,
             ).fetchall()
         return {
-            r[0]: {"summary": r[1], "tags": r[2], "kind": r[3], "created_at": r[4], "valid": bool(r[5])}
+            r[0]: {"summary": r[1], "tags": r[2], "kind": r[3], "created_at": r[4],
+                   "valid": bool(r[5]), "class": r[6] or "semantic"}
             for r in rows
         }
 
-    def recall(self, query: str, layer: int = 0, top_n: int = 5) -> List[Dict[str, Any]]:
+    @staticmethod
+    def _age_phrase(age_days: float) -> str:
+        """Human words, not ISO: 'a raw timestamp doesn't trigger staleness
+        reasoning the way '47 days ago' does' (Claude Code memoryAge.ts)."""
+        d = int(age_days)
+        if d <= 0:
+            return "today"
+        if d == 1:
+            return "yesterday"
+        return f"{d} days ago"
+
+    @staticmethod
+    def _staleness(mem_class: str, created_at: str) -> Dict[str, Any]:
+        """Per-class staleness flags + drift caveat for recall output."""
+        flags: Dict[str, Any] = {}
+        try:
+            age_days = (datetime.now() - datetime.fromisoformat(created_at)).total_seconds() / 86400
+        except (TypeError, ValueError):
+            return flags
+        flags["age_days"] = round(age_days, 1)
+        if age_days > DRIFT_CAVEAT_DAYS:
+            # Aging is prompt text, never score decay.
+            flags["drift_caveat"] = DRIFT_CAVEAT.format(age=MemoryStore._age_phrase(age_days))
+        if mem_class == "operational" and age_days > OPERATIONAL_REVIEW_DAYS:
+            flags["review_due"] = True
+        elif mem_class == "semantic" and age_days > SEMANTIC_STALE_DAYS:
+            flags["stale"] = True
+        # episodic: never decays
+        return flags
+
+    def recall(self, query: str, layer: int = 0, top_n: int = 5,
+               class_filter: str = "") -> List[Dict[str, Any]]:
+        if class_filter and class_filter not in MEMORY_CLASSES:
+            return []
         self._apply_pending_l1()
         coll = self.summary_collection if layer == 1 else self.chunk_collection
         if coll.count() == 0:
             return []
         qemb = self.embedding_model.encode(query, normalize_embeddings=True).tolist()
-        res = coll.query(query_embeddings=[qemb], n_results=min(top_n, coll.count()))
+        # over-fetch when filtering so post-query class filter still fills top_n
+        n = min(top_n * 3 if class_filter else top_n, coll.count())
+        res = coll.query(query_embeddings=[qemb], n_results=n)
         out = []
         if not res["ids"] or not res["ids"][0]:
             return []
@@ -246,7 +369,10 @@ class MemoryStore:
             info = sql.get(mid, {})
             if info and not info["valid"]:
                 continue  # hide tainted memories
-            out.append({
+            mem_class = info.get("class") or meta.get("class", "semantic")
+            if class_filter and mem_class != class_filter:
+                continue
+            entry = {
                 "memory_id": mid,
                 "chunk_id": cid,
                 "layer": layer,
@@ -254,9 +380,21 @@ class MemoryStore:
                 "distance": round(float(dist), 4),
                 "tags": meta.get("tags", ""),
                 "kind": meta.get("kind", ""),
+                "class": mem_class,
                 "created_at": info.get("created_at", "?"),
                 "memory_summary": info.get("summary", ""),
-            })
+            }
+            entry.update(self._staleness(mem_class, info.get("created_at", "")))
+            # cross-show linked ground-truth ids (task 8)
+            with sqlite3.connect(self.sql_db_path) as conn:
+                gt = conn.execute(
+                    "SELECT id, kind, title FROM ground_truth WHERE memory_id = ?", (mid,)
+                ).fetchall()
+            if gt:
+                entry["ground_truth"] = [{"id": g[0], "kind": g[1], "title": g[2]} for g in gt]
+            out.append(entry)
+            if len(out) >= top_n:
+                break
         return out
 
     def context(self, query: str, top_n: int = 3, window: int = 1) -> List[Dict[str, Any]]:
@@ -282,13 +420,99 @@ class MemoryStore:
             total = conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
             valid = conn.execute("SELECT COUNT(*) FROM memories WHERE is_valid = 1").fetchone()[0]
             kinds = dict(conn.execute("SELECT kind, COUNT(*) FROM memories GROUP BY kind").fetchall())
+            classes = dict(conn.execute(
+                "SELECT class, COUNT(*) FROM memories WHERE is_valid = 1 GROUP BY class").fetchall())
+            ground = conn.execute("SELECT COUNT(*) FROM ground_truth").fetchone()[0]
         return {
             "memories_total": total,
             "memories_valid": valid,
             "kinds": kinds,
+            "classes": classes,
+            "ground_truth_rows": ground,
             "l0_chunks": self.chunk_collection.count(),
             "l1_summaries": self.summary_collection.count(),
         }
+
+    # ---------- Ground truth (task 8) ----------
+
+    def ground(
+        self,
+        title: str,
+        payload: str,
+        kind: str = "error-log",
+        source: str = "",
+        memory_id: str = "",
+        class_: str = "",
+    ) -> Dict[str, Any]:
+        """File verbatim evidence (crash log, command output, config, snippet).
+
+        class_ defaults derived from kind: config -> operational,
+        snippet -> semantic, everything else -> episodic.
+        """
+        if kind not in ("bug-fix", "error-log", "command-output", "config", "snippet"):
+            return {"status": "error", "error": "kind must be bug-fix|error-log|command-output|config|snippet"}
+        if not class_:
+            class_ = {"config": "operational", "snippet": "semantic"}.get(kind, "episodic")
+        if class_ not in MEMORY_CLASSES:
+            return {"status": "error", "error": f"class must be one of {MEMORY_CLASSES}"}
+        if memory_id:
+            with sqlite3.connect(self.sql_db_path) as conn:
+                if not conn.execute("SELECT 1 FROM memories WHERE id = ?", (memory_id,)).fetchone():
+                    return {"status": "error", "error": f"memory_id not found: {memory_id}"}
+        gt_id = uuid.uuid4().hex[:12]
+        # Ground truth is stored VERBATIM — so scan first. Redact-in-place
+        # (crash logs keep diagnostic value) and flag the row with rule ids.
+        # Only rule ids/labels are ever reported; matched text is not.
+        payload, hits = redact_and_report(payload)
+        title, title_hits = redact_and_report(title)
+        hits = (hits + title_hits) or []
+        with sqlite3.connect(self.sql_db_path) as conn:
+            conn.execute(
+                "INSERT INTO ground_truth (id, kind, class, title, payload, source, memory_id, secret_hit, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (gt_id, kind, class_, title, payload, source, memory_id or None,
+                 " ".join(sorted({rid for rid, _ in hits})),
+                 datetime.now().isoformat(timespec="seconds")),
+            )
+            conn.commit()
+        result = {"status": "filed", "id": gt_id, "class": class_, "linked_memory": memory_id or None}
+        if hits:
+            result["redacted"] = [label for _rid, label in hits]
+        return result
+
+    def lookup(self, query: str, top_n: int = 5, class_filter: str = "") -> List[Dict[str, Any]]:
+        """Exact-token FTS5 search over ground-truth titles + payloads."""
+        if class_filter and class_filter not in MEMORY_CLASSES:
+            return []
+        with sqlite3.connect(self.sql_db_path) as conn:
+            q = """
+                SELECT g.id, g.kind, g.class, g.title, g.source, g.memory_id, g.created_at,
+                       snippet(ground_truth_fts, 1, '>>', '<<', '...', 24) AS excerpt,
+                       g.secret_hit
+                FROM ground_truth_fts
+                JOIN ground_truth g ON g.rowid = ground_truth_fts.rowid
+                WHERE ground_truth_fts MATCH ?
+                ORDER BY bm25(ground_truth_fts) LIMIT ?
+            """
+            rows = conn.execute(q, (query, top_n * (3 if class_filter else 1))).fetchall()
+        out = []
+        mem_ids = [r[5] for r in rows if r[5]]
+        sql = self._meta_sql(mem_ids)
+        for r in rows:
+            if class_filter and r[2] != class_filter:
+                continue
+            entry = {
+                "id": r[0], "kind": r[1], "class": r[2], "title": r[3],
+                "source": r[4], "memory_id": r[5], "created_at": r[6], "excerpt": r[7],
+            }
+            if r[5] and r[5] in sql:
+                entry["memory_summary"] = sql[r[5]]["summary"]
+            if r[8]:
+                entry["secret_hit"] = r[8]  # rule ids only; content already redacted at write
+            out.append(entry)
+            if len(out) >= top_n:
+                break
+        return out
 
     # ---------- Delete ----------
 

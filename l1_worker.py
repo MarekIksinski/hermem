@@ -25,7 +25,11 @@ MEM_DIR = "/home/marek/.hermes/mem/store"
 OLLAMA_URL = "http://192.168.1.127:11434/api/generate"
 PROMPT = (
     "Summarize the following memory note in ONE sentence (max 30 words), "
-    "no preamble, keep all names, paths and numbers exact:\n\n{chunk}"
+    "no preamble, keep all names, paths and numbers exact. "
+    "CRITICAL: preserve every scope qualifier exactly as written — words like "
+    "sandbox, dev, prod, live, test, copy, deprecated change the meaning and "
+    "must never be dropped or merged. Never state a fact about X as a fact "
+    "about Y:\n\n{chunk}"
 )
 
 

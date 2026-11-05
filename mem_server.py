@@ -26,7 +26,8 @@ store = MemoryStore()
 
 
 @mcp.tool()
-def mem_remember(content: str, summary: str, tags: str = "", kind: str = "note", supersedes: str = "") -> str:
+def mem_remember(content: str, summary: str, tags: str = "", kind: str = "note", supersedes: str = "",
+                 class_: str = "semantic") -> str:
     """Store a durable memory in the long-term hierarchical store.
 
     content: the full text worth remembering (facts, decisions, procedures).
@@ -35,21 +36,68 @@ def mem_remember(content: str, summary: str, tags: str = "", kind: str = "note",
     what future recall shows as context. tags: comma-separated keywords.
     kind: short category, e.g. 'project', 'environment', 'procedure',
     'code-pattern', 'system-config', 'preference'.
+    What NOT to save: anything derivable from current state (code patterns,
+    architecture, file paths, git history, fix recipes) and ephemeral task
+    state — even if the user explicitly asks to save a log/summary, capture
+    only what was surprising or non-obvious about it. Convert relative dates
+    to absolute ('Thursday' -> '2026-11-12'). For operational/decision
+    memories, body structure: the fact, then **Why:** and **How to apply:**
+    lines — future recall judges staleness by the Why.
     supersedes: id of an older memory this one replaces (it gets tainted);
-    use for facts that go stale — IPs, hosts, tooling state.
+    use for facts that go stale — IPs, hosts, tooling state. Cannot target
+    an episodic memory (history is immutable — that returns an error).
+    class_: episodic = what happened (decisions, closures; immutable);
+    semantic = what is known (architecture, conventions; ~180d staleness);
+    operational = what is active (projects, branches, hosts; ~14d review
+    flag). Disambiguation: will this still be true when no project touches
+    it? yes=semantic, no=operational. Default semantic.
     """
-    return json.dumps(store.remember(content=content, summary=summary, tags=tags, kind=kind, supersedes=supersedes))
+    return json.dumps(store.remember(content=content, summary=summary, tags=tags, kind=kind,
+                                     supersedes=supersedes, class_=class_))
 
 
 @mcp.tool()
-def mem_recall(query: str, layer: int = 0, top_n: int = 5) -> str:
+def mem_recall(query: str, layer: int = 0, top_n: int = 5, class_: str = "") -> str:
     """Semantic search of long-term memory.
 
     layer=1 searches chunk one-liners (broad: find WHICH memory matters);
     layer=0 searches raw chunks (specific details). Returns text, memory_id,
-    tags, dates and the parent memory summary for each hit.
+    tags, class, dates, staleness flags (review_due/stale) and the parent
+    memory summary for each hit. class_ filters to one memory class:
+    recall(class_='operational') is the weekly-review open-commitments list.
     """
-    return json.dumps(store.recall(query=query, layer=layer, top_n=top_n), ensure_ascii=False)
+    return json.dumps(store.recall(query=query, layer=layer, top_n=top_n, class_filter=class_),
+                      ensure_ascii=False)
+
+
+@mcp.tool()
+def mem_ground(title: str, payload: str, kind: str = "error-log", source: str = "",
+               memory_id: str = "", class_: str = "") -> str:
+    """File VERBATIM ground-truth evidence (no embeddings, exact-token search).
+
+    payload is stored byte-for-byte: crash logs, error strings, command
+    outputs, config snapshots, reference code snippets. kind:
+    bug-fix|error-log|command-output|config|snippet. memory_id links the
+    evidence to the memory just written (recommended). class_ defaults from
+    kind (config->operational, snippet->semantic, else episodic).
+    Recall hits show linked ground-truth ids.
+    """
+    return json.dumps(store.ground(title=title, payload=payload, kind=kind, source=source,
+                                   memory_id=memory_id, class_=class_))
+
+
+@mcp.tool()
+def mem_lookup(query: str, top_n: int = 5, class_: str = "") -> str:
+    """Exact-token FTS search over ground-truth payloads.
+
+    For error strings, commands, ports, config keys — things semantic
+    search is bad at. query is FTS5 syntax (tokens, "phrases", AND/OR).
+    Hits show the linked memory's summary. class_ filters by memory class.
+    Payloads are scanned+redacted at write time; a secret_hit field names
+    which secret rules matched (labels only, never the secret itself).
+    """
+    return json.dumps(store.lookup(query=query, top_n=top_n, class_filter=class_),
+                      ensure_ascii=False)
 
 
 @mcp.tool()
