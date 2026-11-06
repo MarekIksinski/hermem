@@ -183,6 +183,43 @@ class MemoryStore:
                 END;
                 """
             )
+            # FTS over memory summaries+tags (L2 layer) so mem_lookup can
+            # answer "where does this identifier live?" across BOTH layers
+            # (ground-truth payloads AND memory manifests). External-content
+            # table; summary/tags only change via INSERT (remember) and hard
+            # DELETE (purge) — is_valid taints are filtered at query time.
+            # NOTE: never test emptiness via count(*) on memories_fts — an
+            # external-content FTS reads the CONTENT table, so it is never 0.
+            # Existence is checked in sqlite_master instead.
+            fts_existed = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='memories_fts'").fetchone()
+            conn.execute(
+                """
+                CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
+                USING fts5(summary, tags, content='memories', content_rowid='rowid')
+                """
+            )
+            conn.executescript(
+                """
+                CREATE TRIGGER IF NOT EXISTS mem_fts_ai AFTER INSERT ON memories BEGIN
+                    INSERT INTO memories_fts(rowid, summary, tags)
+                    VALUES (new.rowid, new.summary, new.tags);
+                END;
+                CREATE TRIGGER IF NOT EXISTS mem_fts_ad AFTER DELETE ON memories BEGIN
+                    INSERT INTO memories_fts(memories_fts, rowid, summary, tags)
+                    VALUES ('delete', old.rowid, old.summary, old.tags);
+                END;
+                CREATE TRIGGER IF NOT EXISTS mem_fts_au AFTER UPDATE ON memories BEGIN
+                    INSERT INTO memories_fts(memories_fts, rowid, summary, tags)
+                    VALUES ('delete', old.rowid, old.summary, old.tags);
+                    INSERT INTO memories_fts(rowid, summary, tags)
+                    VALUES (new.rowid, new.summary, new.tags);
+                END;
+                """
+            )
+            # one-time backfill for rows written before the FTS table existed
+            if not fts_existed:
+                conn.execute("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')")
             # Sidecar queue: the P40 l1_worker.py (separate process) inserts
             # upgraded L1 summaries here; this process (Chroma owner) applies
             # them on the next call. Keeps Chroma single-writer.
@@ -616,7 +653,9 @@ class MemoryStore:
         return result
 
     def lookup(self, query: str, top_n: int = 5, class_filter: str = "") -> List[Dict[str, Any]]:
-        """Exact-token FTS5 search over ground-truth titles + payloads."""
+        """Exact-token FTS5 search across BOTH layers: ground-truth payloads
+        AND memory summaries/tags. Answers "where does this identifier live?"
+        in one call. layer='ground_truth' or 'memory' on each hit."""
         if class_filter and class_filter not in MEMORY_CLASSES:
             return []
         with sqlite3.connect(self.sql_db_path) as conn:
@@ -630,6 +669,16 @@ class MemoryStore:
                 ORDER BY bm25(ground_truth_fts) LIMIT ?
             """
             rows = conn.execute(q, (query, top_n * (3 if class_filter else 1))).fetchall()
+            mq = """
+                SELECT m.id, m.kind, m.class, m.summary, m.tags, m.created_at,
+                       m.is_valid,
+                       snippet(memories_fts, 0, '>>', '<<', '...', 24) AS excerpt
+                FROM memories_fts
+                JOIN memories m ON m.rowid = memories_fts.rowid
+                WHERE memories_fts MATCH ?
+                ORDER BY bm25(memories_fts) LIMIT ?
+            """
+            mrows = conn.execute(mq, (query, top_n * (3 if class_filter else 1))).fetchall()
         out = []
         mem_ids = [r[5] for r in rows if r[5]]
         sql = self._meta_sql(mem_ids)
@@ -637,6 +686,7 @@ class MemoryStore:
             if class_filter and r[2] != class_filter:
                 continue
             entry = {
+                "layer": "ground_truth",
                 "id": r[0], "kind": r[1], "class": r[2], "title": r[3],
                 "source": r[4], "memory_id": r[5], "created_at": r[6], "excerpt": r[7],
             }
@@ -645,9 +695,22 @@ class MemoryStore:
             if r[8]:
                 entry["secret_hit"] = r[8]  # rule ids only; content already redacted at write
             out.append(entry)
-            if len(out) >= top_n:
-                break
-        return out
+        for r in mrows:
+            if class_filter and r[2] != class_filter:
+                continue
+            entry = {
+                "layer": "memory",
+                "id": r[0], "kind": r[1], "class": r[2], "summary": r[3],
+                "tags": r[4], "created_at": r[5], "excerpt": r[7],
+            }
+            if not r[6]:
+                entry["tainted"] = True  # superseded/forgotten; kept visible, flagged
+            out.append(entry)
+        # rank merged results by bm25 proximity: preserve each query's order,
+        # interleave ground-truth first (verbatim evidence outranks summaries)
+        gt = [e for e in out if e["layer"] == "ground_truth"][:top_n]
+        mem = [e for e in out if e["layer"] == "memory"][:top_n]
+        return (gt + mem)[: 2 * top_n]
 
     # ---------- Delete ----------
 

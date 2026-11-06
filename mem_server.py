@@ -96,13 +96,17 @@ def mem_ground(title: str, payload: str, kind: str = "error-log", source: str = 
 
 @mcp.tool()
 def mem_lookup(query: str, top_n: int = 5, class_: str = "") -> str:
-    """Exact-token FTS search over ground-truth payloads.
+    """Exact-token FTS search across BOTH layers: ground-truth payloads AND
+    memory summaries/tags. Answers 'where does this identifier live?' in one
+    call — each hit carries layer='ground_truth' or 'memory'.
 
-    For error strings, commands, ports, config keys — things semantic
-    search is bad at. query is FTS5 syntax (tokens, "phrases", AND/OR).
-    Hits show the linked memory's summary. class_ filters by memory class.
-    Payloads are scanned+redacted at write time; a secret_hit field names
-    which secret rules matched (labels only, never the secret itself).
+    For error strings, commands, ports, config keys, project/repo names —
+    things semantic search is bad at. query is FTS5 syntax (tokens,
+    "phrases", AND/OR; underscore-joined tokens match whole and in parts).
+    ground_truth hits show the linked memory's summary; tainted (superseded/
+    forgotten) memory hits stay visible with tainted:true. class_ filters by
+    memory class. Payloads are scanned+redacted at write time; a secret_hit
+    field names which secret rules matched (labels only, never the secret).
     """
     return json.dumps(store.lookup(query=query, top_n=top_n, class_filter=class_),
                       ensure_ascii=False)
