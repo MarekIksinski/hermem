@@ -158,6 +158,13 @@ a long-term memory store far bigger than its built-in memory budget.
       P2 Gather:   review_due rows (operational >14d, semantic >90d);
                    near-dupe pairs from the manifest; rows whose linked
                    ground_truth is newer than the memory.
+                   RECONCILIATION SWEEP (added 2026-11-06 after a missed
+                   close-out caught late): for active repos (from
+                   operational memories / recent index), git log since the
+                   last milestone of that project -> flag push-sized work
+                   units with no matching milestone memory; retro-file them
+                   (or list them if too stale to reconstruct). Gap count
+                   per week = the objective evidence for/against 10h-C.
       P3 Consolidate (parent-model judgment, in-session): merge flagged
                    near-dupes into one row (supersede chain keeps audit);
                    rewrite stale OPERATIONAL rows with fresh facts —
@@ -172,10 +179,12 @@ a long-term memory store far bigger than its built-in memory budget.
       b. Skill rule: if mem_index/mem_stats shows review_due>0 during any
          session, offer the dream then instead of waiting for Monday.
     Acceptance:
-      [ ] Cron job created + first run verified end-to-end.
-      [ ] Skill rule (b) patched compact.
-      [ ] First real consolidation leaves a visible supersede chain.
-      [ ] No new store code unless P2 needs a batch-fetch helper (stats +
-          index + lookup probably suffice — default: none).
+      [x] Cron job created (44e31a89e64c, Mondays 09:00 UTC, deliver=local,
+          skill auto-loaded) + first run fired manually 2026-11-05 (gate
+          expected to skip: stats shows 0 review_due, all rows <2d old).
+      [x] Skill rule (b) patched (Dream loop rule in When to use).
+      [ ] First real consolidation leaves a visible supersede chain
+          (expected when operational rows cross 14d -> ~Nov 19).
+      [x] No new store code (stats+index+lookup sufficient, as designed).
     Anti-goals: no full-transcript mining (that's 10h-C, still gated);
     no rewriting episodic history; dream reports every change it makes.
