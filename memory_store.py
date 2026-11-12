@@ -652,12 +652,46 @@ class MemoryStore:
             result["redacted"] = [label for _rid, label in hits]
         return result
 
+    @staticmethod
+    def _fts_query(query: str) -> str:
+        """Make bare identifier queries safe for FTS5.
+
+        FTS5 parses '-' as NOT ('ims-open' -> ims NOT open -> error) and
+        its unicode61 tokenizer SPLITS stored text on dots/hyphens
+        ('make_public.sh' is tokens make+public+sh; '192.168.1.126:8502'
+        -> 192,168,1,126,8502). So bare tokens with special chars are
+        split on non-alphanumerics and AND-ed; a trailing * wildcard
+        applies to the last piece. Queries with quotes or AND/OR/NOT/NEAR
+        pass through untouched (explicit FTS syntax).
+        """
+        import re
+        if '"' in query:
+            return query  # explicit phrases: user knows FTS syntax
+        out = []
+        for tok in query.split():
+            if tok.upper() in ("AND", "OR", "NOT", "NEAR"):
+                out.append(tok)
+                continue
+            if re.fullmatch(r"[A-Za-z0-9_]+\*?", tok):
+                out.append(tok)
+                continue
+            wildcard = tok.endswith("*")
+            pieces = [p for p in re.split(r"[^A-Za-z0-9_]+", tok) if p]
+            if not pieces:
+                continue
+            if wildcard:
+                pieces[-1] += "*"
+            out.extend(f"{p} AND" for p in pieces[:-1])
+            out.append(pieces[-1])
+        return " ".join(out)
+
     def lookup(self, query: str, top_n: int = 5, class_filter: str = "") -> List[Dict[str, Any]]:
         """Exact-token FTS5 search across BOTH layers: ground-truth payloads
         AND memory summaries/tags. Answers "where does this identifier live?"
         in one call. layer='ground_truth' or 'memory' on each hit."""
         if class_filter and class_filter not in MEMORY_CLASSES:
             return []
+        query = self._fts_query(query)
         with sqlite3.connect(self.sql_db_path) as conn:
             q = """
                 SELECT g.id, g.kind, g.class, g.title, g.source, g.memory_id, g.created_at,
