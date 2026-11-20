@@ -1,0 +1,13 @@
+[Unit]
+Description=hermem read-only memory web UI (127.0.0.1:8765)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.hermes/mem/.venv/bin/python %h/.hermes/mem/webui.py 8765
+Restart=on-failure
+RestartSec=3
+Nice=10
+
+[Install]
+WantedBy=default.target
