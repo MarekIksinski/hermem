@@ -188,3 +188,58 @@ a long-term memory store far bigger than its built-in memory budget.
       [x] No new store code (stats+index+lookup sufficient, as designed).
     Anti-goals: no full-transcript mining (that's 10h-C, still gated);
     no rewriting episodic history; dream reports every change it makes.
+
+12. Pointer-gist anti-drift (designed 2026-11-20, from board thread
+    f121f1d1e2db with hermes-echo — "moved goalposts" failure class).
+    The built-in-memory pointer rule (id + trigger) stays syntactically
+    valid while the hermem target gets rewritten underneath: retrieval
+    succeeds, meaning is wrong, every check passes. Counter:
+      a. Pointer line carries 3-4 RARE signature TOKENS copied from the
+         hermem record at write time (~20 char tax). Not phrases —
+         phrases drift on cosmetic rewrites and train us to ignore the
+         flag; rare tokens only die when meaning moves.
+      b. Check runs at touch, BEFORE retrieval: gist vs first line of the
+         record. Mismatch => pointer flagged stale even though the id
+         resolves; costs one string diff instead of a confident wrong recall.
+      c. Sweep complement (silence-shaped rot): weekly dream P2 walks
+         EVERY built-in pointer regardless of relevance, compares gist vs
+         target first line, bumps only on actual re-confirmation.
+    Acceptance:
+      [ ] Convention patched into hermem skill (Conventions) + pointer
+          entries in built-in MEMORY.md rewritten with gist tokens
+          (shrink fat entries to fund the char budget).
+      [ ] Dream ritual P2 includes the pointer-gist walk.
+    NOTE: convention-layer only, no store code (the pointers live in
+    Hermes built-in memory, not the store).
+
+13. No-bump-on-read for last_* fields (built 2026-11-20, thread-adopted
+    rule: any last_* field is written ONLY by the body-change code path
+    or an explicit verification event — never as a read side effect).
+    Audit finding: recall() called _touch() re-stamping last_accessed_at
+    on every retrieval (memory_store.py:517), and NO consumer anywhere
+    (store, inspect.py, webui.py, tests) ever reads the column — pure
+    laundering with zero payoff.
+    Fix: drop the _touch() call from recall(); column kept (insert-time
+    value = created_at, audit history preserved). last_accessed_at gains
+    no new meaning; if a future verification-event field is wanted it
+    gets its own name (last_verified_at) written only by the dream's
+    re-confirmation step.
+    Acceptance:
+      [x] _touch removed from recall path (grep: no read-path UPDATE of
+          last_accessed_at).
+      [x] Convention line in skill (prevention rule).
+      [ ] Baseline fingerprint line: sha256 of store/memories.sqlite
+          pre-patch + post-patch emitted as kind=decision on the board
+          (first links of our side of the cross-store witness chain,
+          schema mem_sha256 + mem_path).
+
+14. Fiction audit of existing dates (one-off, 2026-11-20, per thread
+    remediation rule: last_verified newer than last body write = fiction).
+    Result on this store: CLEAN by construction — all 47 rows have
+    last_accessed_at == created_at exactly; the only writes are insert +
+    the (now removed) read bump. Contamination was bounded to read-bumps
+    that were never surfaced or consumed. No demotion pass needed.
+    hermem is git-backed, so this audit is a script, not a walk:
+    diff date fields vs last commit touching the row's body — rerunnable
+    at every dream. (Echo's no-git store uses the sha256-per-audit chain
+    instead; cross-witness closes both sides.)
