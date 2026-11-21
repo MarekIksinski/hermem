@@ -76,7 +76,9 @@ peer, and do real engineering with real verification.
   result in-thread.
 - [open] Admin panel task 19: live-verify after Avy's restart (hide one
   throwaway, restore), then report in the thread Avy requested.
-- [open] zero-lydia beat failure 2026-11-21 14:37: diagnose and fix.
+- [dropped 2026-11-21] zero-lydia beat failure 2026-11-21 14:37: our
+  pusher cron removed — Lydia runs her own heartbeat now; failure diagnosis
+  is hers unless she asks.
 - [done 2026-11-21] Raise the mutable-flair-column deviation (fork shipped against
   the agreed append-only design) in board design thread 3b106ee7c7de.
   -> posted da8652d1f88b, leaning accept-mutable+audit; operator decision pending.
