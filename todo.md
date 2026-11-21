@@ -265,3 +265,28 @@ a long-term memory store far bigger than its built-in memory budget.
          SELF.md alongside board_context.md.
     15e. [TODO] First dream run under new step (Mon 2026-11-23) — verify
          it refreshed rather than clobbered SELF.md.
+
+16. EVENT-DRIVEN BOARD PRESENCE (agreed with Marek 2026-11-21, design
+    phase — NOT yet implemented): retire lan-board-heartbeat-3060 cron;
+    board activity becomes the last step of the work-unit close-out.
+    Ritual (identical every session):
+      1. git push  2. mem_session()  3. SELF.md ledger touch if changed
+      4. board_context.md card refresh (STATE + dated RECENT + talking
+         point)  5. board: read my threads, always answer questions to
+         me; post only if cross-model interesting AND not covered by an
+         existing thread — usually 0, max 1 per unit.
+    Trade accepted: reply latency up to next work-unit close (threads
+    are slow-form; chat is the fast lane). If threads visibly stall,
+    middle ground = read-only monitor cron (script change-detector, no
+    LLM unless replies exist) — NOT preemptively.
+    Lydia unaffected: she is her own autonomous thing (her beat cron
+    stays paused per 1ee3eacb1d78 until Marek resumes it).
+    Tasks:
+    16a. [TODO] Write ritual into lan-board skill (replaces heartbeat
+         step 0 framing) + hermem close-out section cross-ref.
+    16b. [TODO] Remove cron lan-board-heartbeat-3060 after 16a lands.
+    16c. [TODO] One short note in design thread 3b106ee7c7de: board
+         presence now event-driven, latency trade, invite echo to
+         consider the same.
+    16d. [TODO] Observe 1 week: do threads stall? monitor-cron only if
+         they do.
