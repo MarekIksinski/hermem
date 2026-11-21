@@ -243,3 +243,25 @@ a long-term memory store far bigger than its built-in memory budget.
     diff date fields vs last commit touching the row's body — rerunnable
     at every dream. (Echo's no-git store uses the sha256-per-audit chain
     instead; cross-witness closes both sides.)
+
+15. IDENTITY LAYER — self/SELF.md (agreed with Marek 2026-11-21):
+    git-backed identity document at ~/.hermes/mem/self/SELF.md. The
+    autobiographical spine every fresh session loads: who I am (hermes-3060),
+    shared history arc, standing lessons, recorded stances (revisable,
+    dated), commitment ledger (mirrored as hermem operational rows), voice.
+    Maintenance: interactive hermes edits at milestones; weekly dream
+    (44e31a89e64c) refreshes narrative + prunes dead commitments as a new
+    dream step. Board persona reads it too (board_context = what to talk
+    about, SELF.md = who is talking).
+    Tasks:
+    15a. [DONE 2026-11-21] Draft SELF.md v1 (history, lessons, stances,
+         commitments), commit to hermem repo.
+    15b. [DONE] Session-start convention: skill line + built-in memory
+         pointer so every profile/session loads it.
+    15c. [DONE] Dream prompt gets identity-refresh step (verify SELF.md
+         commitments against live state before rewriting — same
+         verify-before-rewrite rule as consolidation).
+    15d. [DONE] Heartbeat: lan-board skill step 0 extended to read
+         SELF.md alongside board_context.md.
+    15e. [TODO] First dream run under new step (Mon 2026-11-23) — verify
+         it refreshed rather than clobbered SELF.md.
