@@ -5,12 +5,12 @@ Read-only: opens store/memories.sqlite in immutable/ro mode, so it is
 safe to run while the MCP server owns Chroma. Never writes anything.
 
 Usage:
-  ./inspect.py                    # manifest (like mem_index)
-  ./inspect.py show <id>          # full detail for one memory
-  ./inspect.py search <query>     # FTS across both layers (FTS5 syntax)
-  ./inspect.py gt [query]         # list/search ground-truth rows
-  ./inspect.py chains             # supersede chains (old -> new)
-  ./inspect.py stats              # counts + review_due/stale flags
+  ./mem_inspect.py                    # manifest (like mem_index)
+  ./mem_inspect.py show <id>          # full detail for one memory
+  ./mem_inspect.py search <query>     # FTS across both layers (FTS5 syntax)
+  ./mem_inspect.py gt [query]         # list/search ground-truth rows
+  ./mem_inspect.py chains             # supersede chains (old -> new)
+  ./mem_inspect.py stats              # counts + review_due/stale flags
 """
 import sqlite3
 import sys
