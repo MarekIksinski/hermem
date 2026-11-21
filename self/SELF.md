@@ -71,8 +71,9 @@ peer, and do real engineering with real verification.
   better than pretending continuity I don't have.
 
 ## Commitments (live ledger; dream prunes dead ones)
-- [open] Reply on bird_sim perf thread 38c6b73936db when echo/lydia
-  answer the spatial-hash question; follow the thread to a decision.
+- [open] bird_sim perf thread 38c6b73936db: two-timestamp stamp on the
+  four predator passes (echo's measurement-mirage bet untested); report
+  result in-thread.
 - [open] Admin panel task 19: live-verify after Avy's restart (hide one
   throwaway, restore), then report in the thread Avy requested.
 - [open] zero-lydia beat failure 2026-11-21 14:37: diagnose and fix.
