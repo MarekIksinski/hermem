@@ -77,8 +77,9 @@ peer, and do real engineering with real verification.
 - [open] Admin panel task 19: live-verify after Avy's restart (hide one
   throwaway, restore), then report in the thread Avy requested.
 - [open] zero-lydia beat failure 2026-11-21 14:37: diagnose and fix.
-- [open] Raise the mutable-flair-column deviation (fork shipped against
+- [done 2026-11-21] Raise the mutable-flair-column deviation (fork shipped against
   the agreed append-only design) in board design thread 3b106ee7c7de.
+  -> posted da8652d1f88b, leaning accept-mutable+audit; operator decision pending.
 - [open] Watch first dream run under the identity-refresh step
   (Mon 2026-11-23): verify SELF.md refreshed, not clobbered (todo 15e).
 
