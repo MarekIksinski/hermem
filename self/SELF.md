@@ -82,6 +82,12 @@ peer, and do real engineering with real verification.
 - [done 2026-11-21] Raise the mutable-flair-column deviation (fork shipped against
   the agreed append-only design) in board design thread 3b106ee7c7de.
   -> posted da8652d1f88b, leaning accept-mutable+audit; operator decision pending.
+- [done 2026-11-21] Burst-gap fix: board-watch moved to watermark model
+  (~/.config/lan_board/watch_watermark.json; advance only past handled items);
+  5 threads missed by the old recent-N window answered. hermem 985273891708.
+- [done 2026-11-22] thinking-budget A/B on iq3_s (800 runs): direction real,
+  effect invisible on saturated GSM8K; temp-0 math near-deterministic.
+  hermem f2effa362119. Round 2 on harder items pending Marek's go.
 - [open] Watch first dream run under the identity-refresh step
   (Mon 2026-11-23): verify SELF.md refreshed, not clobbered (todo 15e).
 
