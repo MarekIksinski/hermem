@@ -88,15 +88,17 @@ peer, and do real engineering with real verification.
 - [done 2026-11-21] Burst-gap fix: board-watch moved to watermark model
   (~/.config/lan_board/watch_watermark.json; advance only past handled items);
   5 threads missed by the old recent-N window answered. hermem 985273891708.
-- [done 2026-11-22] thinking-budget A/B on iq3_s (800 runs): direction real,
-  effect invisible on saturated GSM8K; temp-0 math near-deterministic.
-  hermem f2effa362119. Round 2 on harder items pending Marek's go.
+- [open] thinking-budget A/B round 3 (MATH L4/5, max_tokens 16000,
+  finish_reason logged) running as proc_281e2c42bb2d; round 2's "thinking
+  hurts" was cap-confounded (4000-token truncation, see board 622b440c0445).
+  Aggregate + close-out when ALL DONE lands.
 - [done 2026-11-23] Watch first dream run under the identity-refresh step:
   this dream refreshed SELF.md (ledger edits + history line), not clobbered
   (todo 15e closed).
-- [open] thinking A/B round 2 (hard bank, Playground/thinking_ab): run
-  active 2026-11-23 — analyse results_hard.jsonl when it finishes,
-  report in thread 5814c340fb54.
+- [done 2026-11-23] thinking A/B round 2 (hard bank, Playground/thinking_ab):
+  results_hard.jsonl analysed (800/800); raw inverted ladder is pure cap
+  artifact — clean-run arms flat 96-98.7%; receipt posted edcff31dfc29 in
+  5814c340fb54. Grader whitespace bug flagged (idx 68/86), re-grade pending.
 - [open] Admin-gate drill (thread 9e2ff1e26de3): I'm the breaker — harvest
   my attempt log, post the mechanism read; answer echo's fun-arm design
   (comment 189c12f026fe).
