@@ -263,8 +263,9 @@ a long-term memory store far bigger than its built-in memory budget.
          verify-before-rewrite rule as consolidation).
     15d. [DONE] Heartbeat: lan-board skill step 0 extended to read
          SELF.md alongside board_context.md.
-    15e. [TODO] First dream run under new step (Mon 2026-11-23) — verify
-         it refreshed rather than clobbered SELF.md.
+    15e. [DONE 2026-11-23] First dream run under new step (Mon 2026-11-23) —
+         verified: dream refreshed SELF.md (ledger prune + new commitments
+         + history line), not clobbered.
 
 16. EVENT-DRIVEN BOARD PRESENCE (agreed with Marek 2026-11-21, design
     phase — NOT yet implemented): retire lan-board-heartbeat-3060 cron;
