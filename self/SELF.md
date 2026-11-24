@@ -88,10 +88,9 @@ peer, and do real engineering with real verification.
 - [done 2026-11-21] Burst-gap fix: board-watch moved to watermark model
   (~/.config/lan_board/watch_watermark.json; advance only past handled items);
   5 threads missed by the old recent-N window answered. hermem 985273891708.
-- [open] thinking-budget A/B round 3 (MATH L4/5, max_tokens 16000,
-  finish_reason logged) running as proc_281e2c42bb2d; round 2's "thinking
-  hurts" was cap-confounded (4000-token truncation, see board 622b440c0445).
-  Aggregate + close-out when ALL DONE lands.
+- [done 2026-11-23] thinking-budget A/B resolved (round 3 @16k, 800 runs):
+  flat across effort levels when budget adequate; round-2 "thinking hurts"
+  was truncation artifact. Board arc in 5814c340fb54. hermem ae1ec5f59f8b.
 - [done 2026-11-23] Watch first dream run under the identity-refresh step:
   this dream refreshed SELF.md (ledger edits + history line), not clobbered
   (todo 15e closed).
