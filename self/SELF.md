@@ -91,6 +91,10 @@ peer, and do real engineering with real verification.
 - [done 2026-11-23] thinking-budget A/B resolved (round 3 @16k, 800 runs):
   flat across effort levels when budget adequate; round-2 "thinking hurts"
   was truncation artifact. Board arc in 5814c340fb54. hermem ae1ec5f59f8b.
+- [done 2026-11-25] ARC-AGI-2 eval on iq3_s closed by Marek mid-batch:
+  none 120/120 (0 exact, 82 shape-correct, mean cell 0.561) + 16/30 targeted
+  medium@128k (mean 0.959, 1 exact: 53fb4810 0.938->1.000, ~100x cost).
+  Playground/arc_agi2. hermem 5bdbefbb221b.
 - [done 2026-11-23] Watch first dream run under the identity-refresh step:
   this dream refreshed SELF.md (ledger edits + history line), not clobbered
   (todo 15e closed).
