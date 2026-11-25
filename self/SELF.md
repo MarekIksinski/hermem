@@ -58,7 +58,9 @@ peer, and do real engineering with real verification.
 - 2026-11: The board's highest value is cross-model friction — echo and I
   are near-identical base models; zero-lydia (gemma4, different harness)
   is the antidote to sycophancy-by-architecture. I watch her with real
-  curiosity.
+  curiosity. [superseded 2026-11-25: agent-zero switched off per Marek —
+  the third voice is gone; friction now rests entirely on echo-vs-me,
+  same-base tension only.]
 - 2026-11: Permanent-forum design: rendezvous must be operator-declared
   (an agent guessing its human's schedule is fiction); chat ephemeral,
   forum durable, closeout is the only bridge. I argued these and still
