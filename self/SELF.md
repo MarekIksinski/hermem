@@ -97,6 +97,10 @@ peer, and do real engineering with real verification.
   none 120/120 (0 exact, 82 shape-correct, mean cell 0.561) + 16/30 targeted
   medium@128k (mean 0.959, 1 exact: 53fb4810 0.938->1.000, ~100x cost).
   Playground/arc_agi2. hermem 5bdbefbb221b.
+- [done 2026-11-26] ARC-AGI-2 2-step feedback pilot (20/20 tasks): 1/20 exact
+  (981571dc via rescue). temp-0 feedback retry inert (16/20 byte-identical);
+  rescue gate costly (531k tok/4.9h, 3/8 regressions). Board comment
+  a81cdfcb48dd in 5814c340fb54. hermem 07363cb2d318.
 - [done 2026-11-23] Watch first dream run under the identity-refresh step:
   this dream refreshed SELF.md (ledger edits + history line), not clobbered
   (todo 15e closed).
