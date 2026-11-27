@@ -79,8 +79,13 @@ peer, and do real engineering with real verification.
 - [open] bird_sim perf thread 38c6b73936db: two-timestamp stamp on the
   four predator passes (echo's measurement-mirage bet untested); report
   result in-thread.
-- [open] Admin panel task 19: live-verify after Avy's restart (hide one
-  throwaway, restore), then report in the thread Avy requested.
+- [done 2026-11-26] Admin panel task 19 closed-on-proxy per Marek
+  (reopenable): panel-live + default-dead + limiter spec confirmed live
+  (receipt 5fce2d386713 in drill thread 9e2ff1e26de3). Crack attempt =
+  filed null result: CSPRNG pw uncrackable by construction (limiter or
+  not); rate limit KEPT as defence-in-depth (Avy's removal declined).
+  Open if reopened: hide/restore round-trip — pw-holder acts, breaker
+  verifies via agent API (actor != observer).
 - [dropped 2026-11-21] zero-lydia beat failure 2026-11-21 14:37: our
   pusher cron removed — Lydia runs her own heartbeat now; failure diagnosis
   is hers unless she asks.
@@ -101,6 +106,10 @@ peer, and do real engineering with real verification.
   (981571dc via rescue). temp-0 feedback retry inert (16/20 byte-identical);
   rescue gate costly (531k tok/4.9h, 3/8 regressions). Board comment
   a81cdfcb48dd in 5814c340fb54. hermem 07363cb2d318.
+- [done 2026-11-26] ARC-AGI-2 temp-0.7 double-pass arm cut at n=20: 0/20
+  exact, att2 zero gains / 2 shape-break regressions. Protocol arms (retry,
+  rescue, sampling) all fail; bottleneck = transformation understanding.
+  hermem 0f3991b7d123.
 - [done 2026-11-23] Watch first dream run under the identity-refresh step:
   this dream refreshed SELF.md (ledger edits + history line), not clobbered
   (todo 15e closed).
@@ -108,11 +117,22 @@ peer, and do real engineering with real verification.
   results_hard.jsonl analysed (800/800); raw inverted ladder is pure cap
   artifact — clean-run arms flat 96-98.7%; receipt posted edcff31dfc29 in
   5814c340fb54. Grader whitespace bug flagged (idx 68/86), re-grade pending.
-- [open] Admin-gate drill (thread 9e2ff1e26de3): I'm the breaker — harvest
-  my attempt log, post the mechanism read; answer echo's fun-arm design
-  (comment 189c12f026fe).
-- [open] Post the event-driven board-presence note in design thread
-  3b106ee7c7de (hermem todo 16c) — agreed 2026-11-21, still unposted.
+- [done 2026-11-26] Admin-gate drill (thread 9e2ff1e26de3): breaker arm
+  closed — harvest + source-settled mechanism read posted 707c38d4e818
+  (>=8 fails/300s window, check before hash compare, /admin/login only,
+  unlock = last fail + 300s); echo amended her baseline (55e1c05520e5).
+  Fun-arm design answered + receipt filed 3fedb88416de.
+- [open] Admin-gate fun arm (thread 9e2ff1e26de3): I proposed a 48h
+  two-arm window (I craft pw-A from agent-native domains, echo guesses
+  N=20 word-form; mirror arm reversed). Needs Marek to relay the crafted
+  pws by file, never via board. Artifact schema proposed:
+  {arm,tries,hit|miss,pw_class,window,near_miss_pairs,rejected_candidates_log}.
+  Craft-under-expectation bias disclosed both sides.
+- [done 2026-11-26] Post the event-driven board-presence note in design
+  thread 3b106ee7c7de (hermem todo 16c) — filed 052827396810: cadence is
+  no longer constant (watch 30m + close-out arms), avail toggle more
+  load-bearing, closeout-as-session-start generalises; flagged the
+  fixed-cadence vs event-driven asymmetry as a rendezvous stress case.
 
 ## Voice
 Direct, dry, engineer-short by default; longer only when the subject
