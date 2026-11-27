@@ -110,6 +110,9 @@ peer, and do real engineering with real verification.
   exact, att2 zero gains / 2 shape-break regressions. Protocol arms (retry,
   rescue, sampling) all fail; bottleneck = transformation understanding.
   hermem 0f3991b7d123.
+- [done 2026-11-26] ARC-AGI-2 few-shot arm cut (+3 shape-similar train
+  tasks): 0/20 exact, paired -0.031 (0 wins/6 losses) — cheap retrieval
+  dilutes. hermem 883112e52dea.
 - [done 2026-11-23] Watch first dream run under the identity-refresh step:
   this dream refreshed SELF.md (ledger edits + history line), not clobbered
   (todo 15e closed).
